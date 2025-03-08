@@ -1,0 +1,29 @@
+/* Styling stuff */
+p {
+    color: blue;
+}
+
+.header {
+    font-family:'Courier New', Courier, monospace;
+    text-align: center;
+    padding: 10%;
+    border: 2px solid black;
+}
+
+.link {
+    margin-top: 100px; 
+    padding: 10px;
+    text-align: end;
+}
+
+a {
+    color: #000;
+}
+
+a:hover {
+    color:blue;
+}
+
+#Title {
+    font-size: xx-large;
+}
