@@ -243,11 +243,11 @@ def solve_quadratic(a, b, c):
     
 def best_integer_allocation(x, y, z, S, damage_fn, source_label):
     """
-    Rounds the floating-point values of x, y, and z to both their floor and ceiling values, 
-    and finds the optimal combination that maximizes the damage function.
-
+    Finds the best integer allocation (xi, yi, zi) that sums to S by
+    performing a small local search around the floating-point solution (x, y, z).
+    
     Args:
-        x (float): The number of points allocated to Attack.
+        x (float): The number of points allocated to Scaling Unit.
         y (float): The number of points allocated to Crit Rate.
         z (float): The number of points allocated to Crit Damage.
         S (int): The total available points to allocate.
@@ -255,23 +255,31 @@ def best_integer_allocation(x, y, z, S, damage_fn, source_label):
         source_label (str): A label indicating the source of the allocation.
 
     Returns:
-        dict: A dictionary containing the best allocation (x, y, z) and the corresponding damage.
+        dict: A dictionary containing the best allocation (x, y, z) and the corresponding damage,
+              or None if no valid integer allocation is found.
     """
-    xf, xc = math.floor(x), math.ceil(x)
-    yf, yc = math.floor(y), math.ceil(y)
-    zf, zc = math.floor(z), math.ceil(z)
-
     best = None
-    for xi in [xf, xc]:
-        for yi in [yf, yc]:
-            for zi in [zf, zc]:
-                if xi < 0 or yi < 0 or zi < 0:
-                    continue
-                if xi + yi + zi != S:
-                    continue
+    
+    # We define a small search radius around the continuous solution.
+    # A radius of 2 is typically sufficient for this type of problem.
+    search_radius = 2
+
+    # Iterate through a small integer range around the continuous x and y values.
+    # The 'max(0, ...)' ensures we never check for negative points.
+    x_range = range(int(max(0, x - search_radius)), int(x + search_radius + 1))
+    y_range = range(int(max(0, y - search_radius)), int(y + search_radius + 1))
+    
+    for xi in x_range:
+        for yi in y_range:
+            zi = S - xi - yi
+            
+            # Check if zi is a valid, non-negative integer.
+            if zi >= 0:
                 damage = damage_fn(xi, yi, zi)
+                
                 if best is None or damage > best['damage']:
                     best = {'x': xi, 'y': yi, 'z': zi, 'damage': damage, 'source': source_label}
+    
     return best
 
 def calculate_damage_p(K, I, F, CR0, CD0, x, y, z):
@@ -295,7 +303,7 @@ def calculate_damage_p(K, I, F, CR0, CD0, x, y, z):
     P_val = A_val * (1 + CR_val * CD_val)
     return P_val
 
-def solve_cr_capped_case(K, I, F, CD0, S_prime, y_cap):
+def solve_cr_capped_case(K, I, F, CR0, CD0, S_prime, y_cap):
     """
     Optimizes for the best allocation of points to Attack (x) and Crit Damage (z) 
     while keeping Crit Rate (y) capped at 100%.
@@ -340,7 +348,7 @@ def solve_cr_capped_case(K, I, F, CD0, S_prime, y_cap):
     best = {'damage': 0}
     for z in z_candidates:
         x = S_prime - z
-        damage = calculate_damage_p(K, I, F, CR0=0, CD0=CD0, x=x, y=y_cap, z=z)  # CR0=0 since CR is capped
+        damage = calculate_damage_p(K, I, F, CR0, CD0, x, y_cap, z)
         if damage > best.get('damage', 0):
             best = {
                 'x': x,
@@ -370,20 +378,12 @@ def get_scenario_solutions(K, I, F, S, CR0, CD0):
         for z_opt in z_candidates:
             if z_opt >= 0:
                 # Assuming x and y are derived from z based on the primary optimization path
-                # These derivations depend on how P(z) was constructed
-                # For the general case where C1_val is fixed:
+
                 # x = S - C1_val - 2z
                 # y = C1_val + z
 
-                # Reconfirming x, y derivation from z when C1 is fixed:
-                # x + y + z = S
-                # y - 2z = C1 (Crit Rate based constant)
-                # From (2): y = C1 + 2z
-                # Substitute y into (1): x + (C1 + 2z) + z = S => x + C1 + 3z = S => x = S - C1 - 3z
-                # Let's use this most direct derivation for x and y given z and C1.
-
-                y_opt = c1_val + 2 * z_opt
-                x_opt = S - y_opt - z_opt # Or S - c1_val - 3 * z_opt (should be same)
+                y_opt = get_y_from_z(c1_val, z_opt)
+                x_opt = get_x_from_z(S, c1_val, z_opt)
 
                 # Check validity
                 if x_opt >= 0 and y_opt >= 0:
@@ -431,7 +431,7 @@ def get_scenario_solutions(K, I, F, S, CR0, CD0):
     S_prime = S - y_cap
 
     if S_prime >= 0:
-        capped_solution = solve_cr_capped_case(K, I, F, CD0, S_prime, y_cap)
+        capped_solution = solve_cr_capped_case(K, I, F, CR0, CD0, S_prime, y_cap)
         solutions.append(capped_solution)
 
     return solutions
