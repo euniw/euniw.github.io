@@ -1,4 +1,9 @@
 import math
+import logging
+
+
+
+logger = logging.getLogger(__name__)
 
 # Constants and point allocation formulas
 def calculate_C1_crit_ratio_constant(CR0, CD0):
@@ -222,6 +227,8 @@ def get_quadratic_coefficients(K, I, F, S, CR0, CD0):
     B_final = 2 * P_z2_Coeff
     C_final = P_z1_Coeff
 
+    logger.debug(f"Quadratic coefficient solver returned: A={A_final}, B={B_final}, C={C_final}")
+
     return A_final, B_final, C_final
 
 def solve_quadratic(a, b, c):
@@ -367,6 +374,8 @@ def get_scenario_solutions(K, I, F, S, CR0, CD0):
     """
     solutions = []
 
+    logger.debug(f"Scenario solver started with params: K={K}, S={S}, CR0={CR0}, CD0={CD0}")
+
     # --- 1. Main Quadratic Solution (potentially 2 solutions) ---
     try:
         c1_val = calculate_C1_crit_ratio_constant(CR0, CD0) 
@@ -394,7 +403,7 @@ def get_scenario_solutions(K, I, F, S, CR0, CD0):
                         solutions.append(best)
     except ValueError as e:
         # e.g., no real roots, so optimal is on boundary
-        print(f"Main quadratic solution failed: {e}. Checking boundaries.")
+        logger.warning(f"Main quadratic solution failed: {e}. Checking boundaries.")
         pass # Will proceed to boundary checks
 
     # --- 2. Boundary Cases ---
@@ -434,11 +443,38 @@ def get_scenario_solutions(K, I, F, S, CR0, CD0):
         capped_solution = solve_cr_capped_case(K, I, F, CR0, CD0, S_prime, y_cap)
         solutions.append(capped_solution)
 
+    logger.debug(f"Found and stored {len(solutions)} solutions: {solutions}")
+
     return solutions
 
 def find_global_optimal_build(K, I, F, S, CR0, CD0, return_all=False):
     """
     Orchestrates the entire optimization process to find the global optimal build.
+
+    This is the main public-facing function of the optimization module. It
+    calls the scenario solver to find a set of potential solutions from
+    various analytical and boundary-case scenarios. It then identifies the
+    single best solution from this set, logs the result, and returns it.
+
+    Args:
+        K (float): Base Attack multiplier.
+        I (float): Attack scaling from an investment stat.
+        F (float): Flat Attack bonus.
+        S (float): Total available points to distribute.
+        CR0 (float): Initial Critical Rate percentage.
+        CD0 (float): Initial Critical Damage percentage.
+        return_all (bool, optional): If True, returns a dictionary containing
+            both the best solution and a list of all potential solutions.
+            If False (default), returns only the best solution.
+
+    Returns:
+        dict: A dictionary containing the optimal allocation (x, y, z) and
+              the corresponding damage. If no valid solutions are found,
+              it returns a dictionary with an error message.
+              
+              If `return_all` is True, it returns a dictionary with keys
+              'best' and 'all', where 'best' is the optimal solution dict
+              and 'all' is the list of all potential solutions.
     """
     all_potential_solutions = get_scenario_solutions(K, I, F, S, CR0, CD0)
 
@@ -447,6 +483,10 @@ def find_global_optimal_build(K, I, F, S, CR0, CD0, return_all=False):
 
     # Find the solution with the maximum damage
     best_solution = max(all_potential_solutions, key=lambda sol: sol['damage'])
+
+    logger.info(f"Calculation complete. Optimal solution from the '{best_solution['source']}' scenario.")
+    logger.info(f"Optimal allocation: x={best_solution['x']}, y={best_solution['y']}, z={best_solution['z']}")
+    logger.info(f"Optimal damage: {best_solution['damage']:.2f}")
 
     if return_all:
         return {"best": best_solution, "all": all_potential_solutions}

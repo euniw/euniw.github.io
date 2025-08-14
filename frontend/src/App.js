@@ -5,6 +5,7 @@ import axios from 'axios';
 import InputForm from './InputForm';
 import ResultsDisplay from './ResultsDisplay';
 import PresetsSelect from './PresetsSelect';
+import DamageHeatmap from './DamageHeatmap';
 function App() {
 
   const REACT_APP_API_URL= "http://localhost:5000/api/calculate"
@@ -41,6 +42,7 @@ function App() {
 
     try {
         const response = await axios.post(REACT_APP_API_URL, dataToSend);
+        console.log('Data being prepared to receive:', response.data)
         setResults(response.data);
     } catch (err) {
         console.error("Error calculating:", err.response ? err.response.data : err.message);
@@ -55,6 +57,7 @@ function App() {
         <InputForm inputs={inputs} onInputChange={handleInputChange} onSubmit={handleSubmit} />
         {error && <div className="error-message">{error}</div>}
         {results && <ResultsDisplay results={results} />}
+        <DamageHeatmap data={results?.visualization_data}/>
     </div>
   );
 }
